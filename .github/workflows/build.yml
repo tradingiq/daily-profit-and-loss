@@ -1,0 +1,94 @@
+name: Build Executables
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-windows:
+    name: Build Windows Executable
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+        check-latest: true
+        
+    - name: Install dependencies
+      run: go mod download
+      
+    - name: Build
+      run: go build -v -o daily-profit-and-loss-windows.exe
+      
+    - name: Upload Windows executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: windows-executable
+        path: daily-profit-and-loss-windows.exe
+        retention-days: 7
+
+  build-linux:
+    name: Build Linux Executable
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+        check-latest: true
+        
+    - name: Install dependencies
+      run: go mod download
+      
+    - name: Install Linux dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libayatana-appindicator3-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev xorg-dev
+        
+    - name: Build
+      run: go build -v -o daily-profit-and-loss-linux
+      
+    - name: Upload Linux executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: linux-executable
+        path: daily-profit-and-loss-linux
+        retention-days: 7
+
+  create-release:
+    name: Create Release
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      
+    - name: Display structure of downloaded files
+      run: ls -R
+      
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          windows-executable/daily-profit-and-loss-windows.exe
+          linux-executable/daily-profit-and-loss-linux
+        tag_name: release-${{ github.run_number }}
+        name: Build ${{ github.run_number }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -60,7 +60,7 @@ func onReady() {
 
 				w := new(app.Window)
 				w.Option(app.Title("Info"))
-				w.Option(app.Size(300, 450))
+				w.Option(app.Size(350, 450))
 
 				go func() {
 					if err := runInfoWindow(w); err != nil {
@@ -74,7 +74,7 @@ func onReady() {
 				log.Info("show UI menu item clicked")
 				w := new(app.Window)
 				w.Option(app.Title("Configuration"))
-				w.Option(app.Size(300, 500))
+				w.Option(app.Size(350, 500))
 
 				go func() {
 					if err := runConfigWindow(w); err != nil {

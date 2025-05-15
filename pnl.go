@@ -21,6 +21,10 @@ func runPnl(ctx context.Context, cfg *Config) {
 		ctx, cancel := context.WithCancel(ctx)
 
 		if cfg.SecretKey != "" && cfg.ApiKey != "" {
+			err := beeep.Notify("TradingIQ PNL Tracker", "PNL Tracking Started", "assets/information.png")
+			if err != nil {
+				log.Warning("Could not notify about start of pnl tracking: %v", err)
+			}
 			go track(ctx, cfg, errChan)
 		}
 

@@ -1,8 +1,10 @@
-package main
+package config
 
 import (
 	"context"
-	"daily-profit-and-loss/pkg/ui"
+	pnlapp "daily-profit-and-loss/internal/app"
+	"daily-profit-and-loss/internal/logger"
+	"daily-profit-and-loss/internal/ui"
 	"encoding/json"
 	"fmt"
 	"gioui.org/app"
@@ -13,7 +15,6 @@ import (
 	"github.com/tradingiq/bitunix-client/model"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -28,21 +29,14 @@ type Config struct {
 	Changed           chan struct{} `json:"-"`
 }
 
-func getConfigPath() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Error("Could not get home directory, using current directory:", err)
-		homeDir = "."
-	}
-	return filepath.Join(homeDir, "tradingiq_daily_pnl_config.json")
-}
+func LoadConfig() *Config {
+	log := logger.GetInstance()
 
-func loadConfig() *Config {
 	config := &Config{
 		Changed: make(chan struct{}),
 	}
 
-	configPath := getConfigPath()
+	configPath := pnlapp.GetConfigPath()
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		log.Error("could not read config file (this is normal for first run):", err)
@@ -58,7 +52,8 @@ func loadConfig() *Config {
 	return config
 }
 
-func saveConfig(config *Config) error {
+func SaveConfig(config *Config) error {
+	log := logger.GetInstance()
 	config.Mtx.Lock()
 	defer config.Mtx.Unlock()
 	data, err := json.MarshalIndent(config, "", "  ")
@@ -67,11 +62,11 @@ func saveConfig(config *Config) error {
 		return fmt.Errorf("error marshaling config: %w", err)
 	}
 
-	configPath := getConfigPath()
+	configPath := pnlapp.GetConfigPath()
 	return os.WriteFile(configPath, data, 0600)
 }
 
-func runConfigWindow(w *app.Window) error {
+func RunConfigWindow(w *app.Window, config *Config, log *logger.Logger) error {
 	th := material.NewTheme()
 
 	var (
@@ -87,9 +82,9 @@ func runConfigWindow(w *app.Window) error {
 	secretKeyInput.SingleLine = true
 	folderPathInput.SingleLine = true
 
-	apiKeyInput.SetText(cfg.ApiKey)
-	secretKeyInput.SetText(cfg.SecretKey)
-	folderPathInput.SetText(cfg.ProfitAndLossFile)
+	apiKeyInput.SetText(config.ApiKey)
+	secretKeyInput.SetText(config.SecretKey)
+	folderPathInput.SetText(config.ProfitAndLossFile)
 
 	status := ""
 
@@ -101,7 +96,7 @@ func runConfigWindow(w *app.Window) error {
 		if selectFolderBtn.Clicked(gtx) {
 
 			go func() {
-				selectedPath := ShowFolderPicker()
+				selectedPath := ShowFolderPicker(log)
 				if selectedPath != "" {
 
 					folderPathInput.SetText(selectedPath)
@@ -135,19 +130,19 @@ func runConfigWindow(w *app.Window) error {
 					} else if err != nil {
 						status = fmt.Sprintf("Error checking folder path: %v", err)
 					} else {
-						cfg.Mtx.Lock()
-						cfg.ApiKey = apiKey
-						cfg.SecretKey = secretKey
-						cfg.ProfitAndLossFile = folderPath
-						cfg.Mtx.Unlock()
+						config.Mtx.Lock()
+						config.ApiKey = apiKey
+						config.SecretKey = secretKey
+						config.ProfitAndLossFile = folderPath
+						config.Mtx.Unlock()
 
-						err := saveConfig(cfg)
+						err := SaveConfig(config)
 						if err != nil {
 							status = fmt.Sprintf("Error saving config: %v", err)
 						} else {
 							status = "Configuration saved successfully!"
 
-							go func() { cfg.Changed <- struct{}{} }()
+							go func() { config.Changed <- struct{}{} }()
 						}
 					}
 				}
@@ -190,7 +185,7 @@ func runConfigWindow(w *app.Window) error {
 	return ui.RunWindow(w, configHandler, th)
 }
 
-func ShowFolderPicker() string {
+func ShowFolderPicker(log *logger.Logger) string {
 	var command *exec.Cmd
 	var output []byte
 	var err error

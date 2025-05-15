@@ -31,7 +31,7 @@ jobs:
       run: go mod download
       
     - name: Build
-      run: go build -ldflags="-H windowsgui" -v -o daily-profit-and-loss-windows.exe
+      run: go build -ldflags="-H windowsgui" -v -o daily-profit-and-loss-windows.exe ./cmd/daily-pnl/
       
     - name: Upload Windows executable
       uses: actions/upload-artifact@v4

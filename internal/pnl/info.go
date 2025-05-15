@@ -1,7 +1,9 @@
-package main
+package pnl
 
 import (
-	"daily-profit-and-loss/pkg/ui"
+	app2 "daily-profit-and-loss/internal/app"
+	"daily-profit-and-loss/internal/logger"
+	"daily-profit-and-loss/internal/ui"
 	"fmt"
 	"gioui.org/app"
 	"gioui.org/layout"
@@ -11,7 +13,7 @@ import (
 	"image/color"
 )
 
-func runInfoWindow(w *app.Window) error {
+func RunInfoWindow(w *app.Window, log *logger.Logger) error {
 
 	th := material.NewTheme()
 
@@ -31,10 +33,10 @@ func runInfoWindow(w *app.Window) error {
 			})
 		}
 
-		versionInfo := ui.InfoText(th, "Version: 0.1.6")
+		versionInfo := ui.InfoText(th, "Version: 0.1.7")
 		copyRightInfo := ui.InfoText(th, "(c) by Victor J. C. Geyer")
 		logFileInfo := ui.InfoText(th, fmt.Sprintf("Log file: %s", log.GetLogFilePath()))
-		configFileInfo := ui.InfoText(th, fmt.Sprintf("Configuration file: %s", getConfigPath()))
+		configFileInfo := ui.InfoText(th, fmt.Sprintf("Configuration file: %s", app2.GetConfigPath()))
 
 		return ui.VerticalLayout(gtx,
 			titleWidget,

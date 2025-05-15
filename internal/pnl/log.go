@@ -1,11 +1,12 @@
-package main
+package pnl
 
 import (
+	"daily-profit-and-loss/internal/logger"
 	"os/exec"
 	"runtime"
 )
 
-func openLogFile() {
+func OpenLogFile(log *logger.Logger) {
 	logFilePath := log.GetLogFilePath()
 	log.Info("opening log file: %s", logFilePath)
 

@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"daily-profit-and-loss/internal/app"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,11 +15,8 @@ type LogLevel int
 
 const (
 	Debug LogLevel = iota
-
 	Info
-
 	Warning
-
 	Error
 )
 
@@ -50,7 +48,6 @@ var (
 
 type Logger struct {
 	entries     []LogEntry
-	subscribers []chan LogEntry
 	mu          sync.Mutex
 	logrus      *logrus.Logger
 	logFile     *os.File
@@ -67,7 +64,7 @@ func GetInstance() *Logger {
 			TimestampFormat: "2006-01-02 15:04:05",
 		})
 
-		logDir := getLogDirectory()
+		logDir := app.GetLogDirectory()
 		if err := os.MkdirAll(logDir, 0755); err != nil {
 			fmt.Printf("Failed to create log directory: %v\n", err)
 		}
@@ -82,7 +79,6 @@ func GetInstance() *Logger {
 
 		instance = &Logger{
 			entries:     make([]LogEntry, 0),
-			subscribers: make([]chan LogEntry, 0),
 			logrus:      logrusLogger,
 			logFile:     logFile,
 			logFilePath: logFilePath,
@@ -93,54 +89,8 @@ func GetInstance() *Logger {
 	return instance
 }
 
-func getLogDirectory() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "logs"
-	}
-	return filepath.Join(homeDir, ".daily-pnl", "logs")
-}
-
 func (l *Logger) GetLogFilePath() string {
 	return l.logFilePath
-}
-
-func (l *Logger) Subscribe() chan LogEntry {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	ch := make(chan LogEntry, 100)
-	l.subscribers = append(l.subscribers, ch)
-
-	go func() {
-		for _, entry := range l.entries {
-			ch <- entry
-		}
-	}()
-
-	return ch
-}
-
-func (l *Logger) Unsubscribe(ch chan LogEntry) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	for i, subscriber := range l.subscribers {
-		if subscriber == ch {
-			l.subscribers = append(l.subscribers[:i], l.subscribers[i+1:]...)
-			close(ch)
-			break
-		}
-	}
-}
-
-func (l *Logger) GetAllLogs() []LogEntry {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	result := make([]LogEntry, len(l.entries))
-	copy(result, l.entries)
-	return result
 }
 
 func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
@@ -152,19 +102,7 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 
 	l.mu.Lock()
 	l.entries = append(l.entries, entry)
-	subscribers := make([]chan LogEntry, len(l.subscribers))
-	copy(subscribers, l.subscribers)
 	l.mu.Unlock()
-
-	for _, subscriber := range subscribers {
-		select {
-		case subscriber <- entry:
-
-		default:
-
-			l.logrus.Warn("Subscriber channel is full, dropping log message")
-		}
-	}
 
 	switch level {
 	case Debug:

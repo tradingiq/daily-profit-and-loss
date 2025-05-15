@@ -113,7 +113,7 @@ func track(ctx context.Context, berlin *time.Location, config *config.Config, er
 	todayMorning := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	tomorrowMorning := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
 
-	realizedPnl, err := fetchInitialBalance(todayMorning, tomorrowMorning, err, apiClient, ctx, log)
+	realizedPnl, err := fetchBalance(ctx, todayMorning, tomorrowMorning, apiClient)
 	if err != nil {
 		log.Error("failed to fetch initial balance: %v", err)
 		errChan <- err
@@ -123,10 +123,10 @@ func track(ctx context.Context, berlin *time.Location, config *config.Config, er
 	mStatus.SetTitle(fmt.Sprintf("Running - Todays PnL %.2f", realizedPnl))
 
 	log.Debug("initial balance at application start: %.2f", realizedPnl)
-	pnl := NewProfitAndLoss(realizedPnl, config, log, mStatus)
+	pnl := NewProfitAndLoss(realizedPnl, config, mStatus, apiClient, todayMorning, tomorrowMorning)
 
 	if config.ProfitAndLossFile != "" {
-		if err := SavePnLToFile(realizedPnl, config.ProfitAndLossFile, log); err != nil {
+		if err := SavePnLToFile(realizedPnl, config.ProfitAndLossFile); err != nil {
 			log.Warning("failed to save initial PnL to file: %v", err)
 		}
 	}
@@ -151,13 +151,14 @@ func track(ctx context.Context, berlin *time.Location, config *config.Config, er
 	}
 }
 
-func fetchInitialBalance(todayMorning time.Time, tomorrowMorning time.Time, err error, apiClient bitunix.ApiClient, ctx context.Context, log *logger.Logger) (float64, error) {
+func fetchBalance(ctx context.Context, todayMorning time.Time, tomorrowMorning time.Time, apiClient bitunix.ApiClient) (float64, error) {
 	params := model.PositionHistoryParams{
 		Limit:     100,
 		StartTime: &todayMorning,
 		EndTime:   &tomorrowMorning,
 	}
 
+	log := logger.GetInstance()
 	posResponse, err := apiClient.GetPositionHistory(ctx, params)
 	if err != nil {
 		log.Debug("failed to fetch initial positions: %v", err)
@@ -194,20 +195,24 @@ func initClient(ctx context.Context, config *config.Config) (bitunix.ApiClient, 
 }
 
 type ProfitAndLoss struct {
-	realizedPnl float64
-	mtx         sync.Mutex
-	config      *config.Config
-	log         *logger.Logger
-	mStatus     *systray.MenuItem
+	realizedPnl     float64
+	mtx             sync.Mutex
+	config          *config.Config
+	mStatus         *systray.MenuItem
+	todayMorning    time.Time
+	tomorrowMorning time.Time
+	apiClient       bitunix.ApiClient
 }
 
-func NewProfitAndLoss(initialProfitAndLoss float64, config *config.Config, log *logger.Logger, mStatus *systray.MenuItem) *ProfitAndLoss {
+func NewProfitAndLoss(initialProfitAndLoss float64, config *config.Config, mStatus *systray.MenuItem, apiClient bitunix.ApiClient, todayMorning, tomorrowMorning time.Time) *ProfitAndLoss {
 	pnl := &ProfitAndLoss{
-		realizedPnl: initialProfitAndLoss,
-		mtx:         sync.Mutex{},
-		config:      config,
-		log:         log,
-		mStatus:     mStatus,
+		realizedPnl:     initialProfitAndLoss,
+		mtx:             sync.Mutex{},
+		config:          config,
+		mStatus:         mStatus,
+		apiClient:       apiClient,
+		todayMorning:    todayMorning,
+		tomorrowMorning: tomorrowMorning,
 	}
 
 	return pnl
@@ -222,10 +227,11 @@ func IsFile(path string) bool {
 	return fileInfo.Mode().IsRegular()
 }
 
-func SavePnLToFile(pnl float64, filePath string, log *logger.Logger) error {
+func SavePnLToFile(pnl float64, filePath string) error {
 	if filePath == "" {
 		return fmt.Errorf("file path is empty")
 	}
+	log := logger.GetInstance()
 
 	if !IsFile(filePath) {
 		filePath = fmt.Sprintf("%s\\pnl.txt", filePath)
@@ -255,16 +261,25 @@ func SavePnLToFile(pnl float64, filePath string, log *logger.Logger) error {
 func (p *ProfitAndLoss) SubscribePosition(message *model.PositionChannelMessage) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
+	log := logger.GetInstance()
 
 	switch message.Data.Event {
-	case model.PositionEventClose:
-		p.realizedPnl += message.Data.RealizedPNL
+	case model.PositionEventClose, model.PositionEventUpdate, model.PositionEventOpen:
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		defer cancel()
+
+		realizedPnl, err := fetchBalance(ctx, p.todayMorning, p.tomorrowMorning, p.apiClient)
+		if err != nil {
+			log.Error("failed to fetch pnl: %v", err)
+		}
+
+		p.realizedPnl = realizedPnl
 		p.mStatus.SetTitle(fmt.Sprintf("Running - %.2f", p.realizedPnl))
-		p.log.Debug("position close message received, realized pnl is now %.2f", p.realizedPnl)
+		log.Debug("position close message received, realized pnl is now %.2f", p.realizedPnl)
 
 		if p.config != nil && p.config.ProfitAndLossFile != "" {
-			if err := SavePnLToFile(p.realizedPnl, p.config.ProfitAndLossFile, p.log); err != nil {
-				p.log.Warning("failed to save updated PnL to file: %v", err)
+			if err := SavePnLToFile(p.realizedPnl, p.config.ProfitAndLossFile); err != nil {
+				log.Warning("failed to save updated PnL to file: %v", err)
 			}
 		}
 	}

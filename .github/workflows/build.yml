@@ -56,5 +56,3 @@ jobs:
       with:
         files: |
           windows-executable/daily-profit-and-loss-windows.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -248,7 +248,7 @@ func SavePnLToFile(pnl float64, filePath string) error {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	pnlString := fmt.Sprintf("%.2f", pnl)
+	pnlString := fmt.Sprintf("%.2f$", pnl)
 
 	if err := os.WriteFile(filePath, []byte(pnlString), 0644); err != nil {
 		return fmt.Errorf("failed to write PnL to file: %w", err)
@@ -274,7 +274,7 @@ func (p *ProfitAndLoss) SubscribePosition(message *model.PositionChannelMessage)
 		}
 
 		p.realizedPnl = realizedPnl
-		p.mStatus.SetTitle(fmt.Sprintf("Running - %.2f", p.realizedPnl))
+		p.mStatus.SetTitle(fmt.Sprintf("Running - realized PnL %.2f$", p.realizedPnl))
 		log.Debug("position close message received, realized pnl is now %.2f", p.realizedPnl)
 
 		if p.config != nil && p.config.ProfitAndLossFile != "" {

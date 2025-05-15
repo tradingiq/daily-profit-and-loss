@@ -20,12 +20,20 @@ func runPnl(ctx context.Context, cfg *Config) {
 	for {
 		ctx, cancel := context.WithCancel(ctx)
 
+		berlin, err := time.LoadLocation("Europe/Berlin")
+		if err != nil {
+			log.Warning("failed to load Europe/Berlin timezone: %v", err)
+			log.Debug("falling back to fixed GMT+1 offset")
+
+			berlin = time.FixedZone("GMT+1", 3600)
+		}
+
 		if cfg.SecretKey != "" && cfg.ApiKey != "" {
 			err := beeep.Notify("TradingIQ PNL Tracker", "PNL Tracking Started", "assets/information.png")
 			if err != nil {
 				log.Warning("Could not notify about start of pnl tracking: %v", err)
 			}
-			go track(ctx, cfg, errChan)
+			go track(ctx, berlin, cfg, errChan)
 		}
 
 		now := time.Now()
@@ -86,20 +94,13 @@ func runPnl(ctx context.Context, cfg *Config) {
 
 }
 
-func track(ctx context.Context, config *Config, errChan chan error) {
+func track(ctx context.Context, berlin *time.Location, config *Config, errChan chan error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	apiClient, wsClient, err := initClient(ctx, config)
 	if err != nil {
 		log.Error("failed to create API client: %v", err)
-		errChan <- err
-		return
-	}
-
-	berlin, err := time.LoadLocation("Europe/Berlin")
-	if err != nil {
-		log.Error("failed to load timezone: %v", err)
 		errChan <- err
 		return
 	}

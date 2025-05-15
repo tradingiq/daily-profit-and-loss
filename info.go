@@ -31,7 +31,7 @@ func runInfoWindow(w *app.Window) error {
 			})
 		}
 
-		versionInfo := ui.InfoText(th, "Version: 0.1.0")
+		versionInfo := ui.InfoText(th, "Version: 0.1.6")
 		copyRightInfo := ui.InfoText(th, "(c) by Victor J. C. Geyer")
 		logFileInfo := ui.InfoText(th, fmt.Sprintf("Log file: %s", log.GetLogFilePath()))
 		configFileInfo := ui.InfoText(th, fmt.Sprintf("Configuration file: %s", getConfigPath()))

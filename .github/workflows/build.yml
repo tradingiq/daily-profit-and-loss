@@ -49,14 +49,9 @@ jobs:
       
     - name: Create Release
       id: create_release
-      uses: softprops/action-gh-release@v1
+      uses:  softprops/action-gh-release@v2
       with:
         files: |
           windows-executable/daily-profit-and-loss-windows.exe
-        tag_name: release-${{ github.run_number }}
-        name: Build ${{ github.run_number }}
-        draft: false
-        prerelease: false
-        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

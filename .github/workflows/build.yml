@@ -28,7 +28,7 @@ jobs:
       run: go build -v -o daily-profit-and-loss-windows.exe
       
     - name: Upload Windows executable
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: windows-executable
         path: daily-profit-and-loss-windows.exe

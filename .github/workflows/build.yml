@@ -11,7 +11,8 @@ jobs:
   build-windows:
     name: Build Windows Executable
     runs-on: windows-latest
-    
+    if: github.ref_type == 'tag'
+
     steps:
     - uses: actions/checkout@v3
     
